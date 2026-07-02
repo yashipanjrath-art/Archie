@@ -83,6 +83,18 @@
     background:var(--card);border:none;color:var(--dim);
     border-radius:12px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;
   }
+  .loghead button.on{background:var(--danger);color:#fff}
+  .awaybanner{
+    display:none;
+    background:var(--card2);
+    border:1px dashed var(--dim);
+    border-radius:14px;
+    padding:12px 14px;
+    font-size:14px;color:var(--dim);
+    text-align:center;
+    margin-bottom:14px;
+  }
+  body.away .awaybanner{display:block}
   #logList{list-style:none;display:flex;flex-direction:column;gap:6px}
   #logList li{
     background:var(--card);
@@ -130,9 +142,14 @@
 
   <div class="toast" id="toast"></div>
 
+  <div class="awaybanner">⏸ Away mode — predictions paused. Tap any button when you're back with him and it picks up fresh from there. Old data still counts.</div>
+
   <div class="loghead">
     <h2>Log</h2>
-    <button onclick="undoLast()">↩︎ Undo last</button>
+    <div style="display:flex;gap:6px">
+      <button id="awayBtn" onclick="toggleAway()">⏸ Away</button>
+      <button onclick="undoLast()">↩︎ Undo last</button>
+    </div>
   </div>
   <ul id="logList"></ul>
   <div class="footer-note">Predictions learn from Archie's own pattern the more you tap.</div>
@@ -142,7 +159,8 @@ const KEY = 'archie-log-v1';
 const KIND = {
   pee:{emoji:'💧',label:'Pee'},
   poo:{emoji:'💩',label:'Poo'},
-  ate:{emoji:'🍖',label:'Ate'}
+  ate:{emoji:'🍖',label:'Ate'},
+  gap:{emoji:'⏸',label:'Away'}
 };
 // fallbacks (mins) while data is sparse — 9-10 wk mini dachshund defaults
 const FALLBACK = { pee:120, poo:300, ate:240 }; // meal = every 4h (your schedule)
@@ -162,11 +180,30 @@ function save(){
   catch(e){ showToast('⚠️ Could not save — try again'); }
 }
 
+function isAway(){
+  return events.length && events[events.length-1].k === 'gap';
+}
+
 function logEvent(k){
+  const wasAway = isAway();
   events.push({t: Date.now(), k});
   events.sort((a,b)=>a.t-b.t);
   save();
-  showToast(KIND[k].emoji + ' ' + KIND[k].label + ' logged at ' + fmtTime(Date.now()));
+  showToast((wasAway ? '▶️ Back! ' : '') + KIND[k].emoji + ' ' + KIND[k].label + ' logged at ' + fmtTime(Date.now()));
+  render();
+}
+
+function toggleAway(){
+  if(isAway()){
+    // cancel away mode without logging anything
+    events.pop();
+    save();
+    showToast('▶️ Away mode cancelled');
+  } else {
+    events.push({t: Date.now(), k:'gap'});
+    save();
+    showToast('⏸ Paused — tap any button when you\'re back');
+  }
   render();
 }
 
@@ -201,12 +238,18 @@ function fmtIn(mins){
   return 'in ' + h + 'h' + (m ? ' ' + m + 'm' : '');
 }
 
-// rolling average of last N gaps between same-kind events
+// true if a gap marker sits between two timestamps
+function crossesGap(t1, t2){
+  return events.some(e => e.k==='gap' && e.t > t1 && e.t < t2);
+}
+
+// rolling average of last N gaps between same-kind events (skipping away breaks)
 function avgGap(kind, N=5){
   const ts = events.filter(e=>e.k===kind).map(e=>e.t);
   if(ts.length < 2) return null;
   const gaps = [];
   for(let i=1;i<ts.length;i++){
+    if(crossesGap(ts[i-1], ts[i])) continue; // away break — not a real interval
     const g = (ts[i]-ts[i-1])/60000;
     if(g > 5 && g < 24*60) gaps.push(g); // ignore double-taps & huge overnight-ish gaps
   }
@@ -222,7 +265,7 @@ function avgPooAfterMeal(N=5){
     if(e.k!=='poo') continue;
     // last meal before this poo
     const meal = [...events].reverse().find(m=>m.k==='ate' && m.t < e.t && (e.t-m.t) < 90*60000);
-    if(meal) delays.push((e.t-meal.t)/60000);
+    if(meal && !crossesGap(meal.t, e.t)) delays.push((e.t-meal.t)/60000);
   }
   if(!delays.length) return null;
   const recent = delays.slice(-N);
@@ -231,7 +274,12 @@ function avgPooAfterMeal(N=5){
 
 function lastOf(kind){
   const arr = events.filter(e=>e.k===kind);
-  return arr.length ? arr[arr.length-1].t : null;
+  if(!arr.length) return null;
+  const t = arr[arr.length-1].t;
+  // after an away break, wait for a fresh tap before predicting again
+  const gaps = events.filter(e=>e.k==='gap');
+  if(gaps.length && t < gaps[gaps.length-1].t) return null;
+  return t;
 }
 
 function predictions(){
@@ -263,16 +311,27 @@ function predictions(){
 }
 
 function renderPreds(){
+  const away = isAway();
+  document.body.classList.toggle('away', away);
+  const awayBtn = document.getElementById('awayBtn');
+  awayBtn.classList.toggle('on', away);
+  awayBtn.textContent = away ? '▶️ Cancel away' : '⏸ Away';
+
   const p = predictions();
   const now = Date.now();
   for(const k of ['pee','poo','ate']){
     const el = document.getElementById('pred' + k.charAt(0).toUpperCase() + k.slice(1));
     const timeEl = el.querySelector('.time');
     const inEl = el.querySelector('.in');
+    el.classList.remove('due');
+    if(away){
+      timeEl.textContent = '⏸';
+      inEl.textContent = 'paused';
+      continue;
+    }
     if(!p[k]){
       timeEl.textContent = '–';
       inEl.textContent = 'tap to start';
-      el.classList.remove('due');
       continue;
     }
     const mins = (p[k]-now)/60000;
