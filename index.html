@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Archie</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Archie">
+<meta name="theme-color" content="#1b2233">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231b2233' rx='20'/><text x='50' y='68' font-size='55' text-anchor='middle'>🐶</text></svg>">
+<style>
+  :root{
+    --bg:#1b2233;
+    --card:#242e45;
+    --card2:#2b3752;
+    --cream:#f3ead9;
+    --dim:#9aa5bf;
+    --pee:#ffd166;
+    --poo:#c98a5b;
+    --ate:#8fd694;
+    --danger:#e8756a;
+    --radius:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--cream);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:16px 16px 40px;
+    max-width:460px;
+    margin:0 auto;
+  }
+  header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+  h1{font-size:22px;font-weight:800;letter-spacing:-0.3px}
+  h1 span{opacity:.55;font-weight:600;font-size:14px;margin-left:6px}
+  #clock{font-variant-numeric:tabular-nums;color:var(--dim);font-size:14px}
+
+  /* predictions */
+  .preds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+  .pred{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:12px 10px;
+    text-align:center;
+  }
+  .pred .lbl{font-size:12px;color:var(--dim);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .pred .time{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .pred .in{font-size:12px;margin-top:3px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .pred.due{outline:2px solid var(--danger)}
+  .pred.due .in{color:var(--danger);font-weight:700}
+
+  /* big buttons */
+  .btns{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+  button.log{
+    border:none;border-radius:var(--radius);
+    padding:22px;
+    font-size:22px;font-weight:800;
+    color:#1b2233;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    cursor:pointer;
+    transition:transform .06s ease;
+    width:100%;
+  }
+  button.log:active{transform:scale(.97)}
+  #btnPee{background:var(--pee)}
+  #btnPoo{background:var(--poo)}
+  #btnAte{background:var(--ate)}
+  button.log .emoji{font-size:28px}
+
+  .toast{
+    text-align:center;font-size:14px;color:var(--dim);
+    min-height:20px;margin-bottom:14px;
+    transition:opacity .3s;
+  }
+
+  /* log */
+  .loghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .loghead h2{font-size:14px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .loghead button{
+    background:var(--card);border:none;color:var(--dim);
+    border-radius:12px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  #logList{list-style:none;display:flex;flex-direction:column;gap:6px}
+  #logList li{
+    background:var(--card);
+    border-radius:14px;
+    padding:11px 14px;
+    display:flex;align-items:center;gap:10px;
+    font-size:15px;
+  }
+  #logList li .t{margin-left:auto;color:var(--dim);font-variant-numeric:tabular-nums;font-size:14px}
+  #logList li.dayrow{background:transparent;color:var(--dim);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:6px 4px 0}
+  .empty{color:var(--dim);text-align:center;padding:24px 0;font-size:14px}
+
+  .footer-note{margin-top:18px;text-align:center;font-size:12px;color:var(--dim);opacity:.7}
+</style>
+</head>
+<body>
+  <header>
+    <h1>🐶 Archie <span>tracker</span></h1>
+    <div id="clock"></div>
+  </header>
+
+  <div class="preds">
+    <div class="pred" id="predPee">
+      <div class="lbl">💧 Pee</div>
+      <div class="time">–</div>
+      <div class="in"></div>
+    </div>
+    <div class="pred" id="predPoo">
+      <div class="lbl">💩 Poo</div>
+      <div class="time">–</div>
+      <div class="in"></div>
+    </div>
+    <div class="pred" id="predAte">
+      <div class="lbl">🍖 Meal</div>
+      <div class="time">–</div>
+      <div class="in"></div>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button class="log" id="btnPee" onclick="logEvent('pee')"><span class="emoji">💧</span> Pee</button>
+    <button class="log" id="btnPoo" onclick="logEvent('poo')"><span class="emoji">💩</span> Poo</button>
+    <button class="log" id="btnAte" onclick="logEvent('ate')"><span class="emoji">🍖</span> Ate</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="loghead">
+    <h2>Log</h2>
+    <button onclick="undoLast()">↩︎ Undo last</button>
+  </div>
+  <ul id="logList"></ul>
+  <div class="footer-note">Predictions learn from Archie's own pattern the more you tap.</div>
+
+<script>
+const KEY = 'archie-log-v1';
+const KIND = {
+  pee:{emoji:'💧',label:'Pee'},
+  poo:{emoji:'💩',label:'Poo'},
+  ate:{emoji:'🍖',label:'Ate'}
+};
+// fallbacks (mins) while data is sparse — 9-10 wk mini dachshund defaults
+const FALLBACK = { pee:120, poo:300, ate:240 }; // meal = every 4h (your schedule)
+const POO_AFTER_MEAL_DEFAULT = 15; // mins after eating
+
+let events = []; // {t: epoch ms, k: 'pee'|'poo'|'ate'}
+
+function load(){
+  try{
+    const r = localStorage.getItem(KEY);
+    if(r) events = JSON.parse(r);
+  }catch(e){ events = []; }
+  render();
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(events)); }
+  catch(e){ showToast('⚠️ Could not save — try again'); }
+}
+
+function logEvent(k){
+  events.push({t: Date.now(), k});
+  events.sort((a,b)=>a.t-b.t);
+  save();
+  showToast(KIND[k].emoji + ' ' + KIND[k].label + ' logged at ' + fmtTime(Date.now()));
+  render();
+}
+
+function undoLast(){
+  if(!events.length) return;
+  const gone = events.pop();
+  save();
+  showToast('Removed ' + KIND[gone.k].emoji + ' ' + fmtTime(gone.t));
+  render();
+}
+
+let toastTimer;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.opacity = 1;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.opacity = 0; }, 3500);
+}
+
+function fmtTime(t){
+  const d = new Date(t);
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? 'pm' : 'am';
+  h = h % 12 || 12;
+  return h + ':' + String(m).padStart(2,'0') + ap;
+}
+function fmtIn(mins){
+  if(mins <= 0) return 'due now';
+  if(mins < 60) return 'in ' + Math.round(mins) + ' min';
+  const h = Math.floor(mins/60), m = Math.round(mins%60);
+  return 'in ' + h + 'h' + (m ? ' ' + m + 'm' : '');
+}
+
+// rolling average of last N gaps between same-kind events
+function avgGap(kind, N=5){
+  const ts = events.filter(e=>e.k===kind).map(e=>e.t);
+  if(ts.length < 2) return null;
+  const gaps = [];
+  for(let i=1;i<ts.length;i++){
+    const g = (ts[i]-ts[i-1])/60000;
+    if(g > 5 && g < 24*60) gaps.push(g); // ignore double-taps & huge overnight-ish gaps
+  }
+  if(!gaps.length) return null;
+  const recent = gaps.slice(-N);
+  return recent.reduce((a,b)=>a+b,0)/recent.length;
+}
+
+// average delay poo-after-meal
+function avgPooAfterMeal(N=5){
+  const delays = [];
+  for(const e of events){
+    if(e.k!=='poo') continue;
+    // last meal before this poo
+    const meal = [...events].reverse().find(m=>m.k==='ate' && m.t < e.t && (e.t-m.t) < 90*60000);
+    if(meal) delays.push((e.t-meal.t)/60000);
+  }
+  if(!delays.length) return null;
+  const recent = delays.slice(-N);
+  return recent.reduce((a,b)=>a+b,0)/recent.length;
+}
+
+function lastOf(kind){
+  const arr = events.filter(e=>e.k===kind);
+  return arr.length ? arr[arr.length-1].t : null;
+}
+
+function predictions(){
+  const now = Date.now();
+  const out = {};
+
+  // PEE: last pee + avg pee gap
+  const lastPee = lastOf('pee');
+  const peeGap = avgGap('pee') || FALLBACK.pee;
+  out.pee = lastPee ? lastPee + peeGap*60000 : null;
+
+  // MEAL: last ate + avg ate gap (defaults to your 4h schedule)
+  const lastAte = lastOf('ate');
+  const ateGap = avgGap('ate') || FALLBACK.ate;
+  out.ate = lastAte ? lastAte + ateGap*60000 : null;
+
+  // POO: if he ate after his last poo, predict meal + learned delay; else last poo + avg poo gap
+  const lastPoo = lastOf('poo');
+  const pam = avgPooAfterMeal() || POO_AFTER_MEAL_DEFAULT;
+  if(lastAte && (!lastPoo || lastAte > lastPoo)){
+    out.poo = lastAte + pam*60000;
+  } else if(lastPoo){
+    const pooGap = avgGap('poo') || FALLBACK.poo;
+    out.poo = lastPoo + pooGap*60000;
+  } else {
+    out.poo = null;
+  }
+  return out;
+}
+
+function renderPreds(){
+  const p = predictions();
+  const now = Date.now();
+  for(const k of ['pee','poo','ate']){
+    const el = document.getElementById('pred' + k.charAt(0).toUpperCase() + k.slice(1));
+    const timeEl = el.querySelector('.time');
+    const inEl = el.querySelector('.in');
+    if(!p[k]){
+      timeEl.textContent = '–';
+      inEl.textContent = 'tap to start';
+      el.classList.remove('due');
+      continue;
+    }
+    const mins = (p[k]-now)/60000;
+    timeEl.textContent = fmtTime(p[k]);
+    inEl.textContent = fmtIn(mins);
+    el.classList.toggle('due', mins <= 0);
+  }
+}
+
+function renderLog(){
+  const list = document.getElementById('logList');
+  list.innerHTML = '';
+  if(!events.length){
+    list.innerHTML = '<div class="empty">Nothing logged yet — tap a button when it happens 🐾</div>';
+    return;
+  }
+  const recent = [...events].slice(-30).reverse();
+  let lastDay = '';
+  for(const e of recent){
+    const d = new Date(e.t);
+    const dayKey = d.toDateString();
+    if(dayKey !== lastDay){
+      lastDay = dayKey;
+      const today = new Date().toDateString();
+      const yest = new Date(Date.now()-864e5).toDateString();
+      const label = dayKey===today ? 'Today' : dayKey===yest ? 'Yesterday' :
+        d.toLocaleDateString('en-AU',{weekday:'short', day:'numeric', month:'short'});
+      const row = document.createElement('li');
+      row.className = 'dayrow';
+      row.textContent = label;
+      list.appendChild(row);
+    }
+    const li = document.createElement('li');
+    li.innerHTML = '<span>' + KIND[e.k].emoji + '</span><span>' + KIND[e.k].label + '</span><span class="t">' + fmtTime(e.t) + '</span>';
+    list.appendChild(li);
+  }
+}
+
+function renderClock(){
+  document.getElementById('clock').textContent = fmtTime(Date.now());
+}
+
+function render(){
+  renderClock();
+  renderPreds();
+  renderLog();
+}
+
+setInterval(()=>{ renderClock(); renderPreds(); }, 30000);
+load();
+</script>
+</body>
+</html>
